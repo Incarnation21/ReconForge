@@ -1,0 +1,252 @@
+[
+  {
+    "name": "Nginx",
+    "category": "Web Server",
+    "headers": { "Server": "nginx(?:/([\\d.]+))?" },
+    "cookies": [],
+    "meta": {},
+    "html": [],
+    "scripts": [],
+    "favicon_hash": []
+  },
+  {
+    "name": "Apache HTTP Server",
+    "category": "Web Server",
+    "headers": { "Server": "Apache(?:/([\\d.]+))?" },
+    "cookies": [],
+    "meta": {},
+    "html": [],
+    "scripts": [],
+    "favicon_hash": []
+  },
+  {
+    "name": "Microsoft IIS",
+    "category": "Web Server",
+    "headers": { "Server": "Microsoft-IIS(?:/([\\d.]+))?" },
+    "cookies": [],
+    "meta": {},
+    "html": [],
+    "scripts": [],
+    "favicon_hash": []
+  },
+  {
+    "name": "Cloudflare",
+    "category": "CDN / WAF",
+    "headers": { "Server": "cloudflare", "cf-ray": ".+" },
+    "cookies": ["__cf_bm", "__cfduid", "cf_clearance"],
+    "meta": {},
+    "html": [],
+    "scripts": ["cloudflare\\.min\\.js", "static\\.cloudflareinsights\\.com"],
+    "favicon_hash": []
+  },
+  {
+    "name": "AWS Elastic Load Balancing",
+    "category": "Load Balancer",
+    "headers": { "Server": "awselb(?:/([\\d.]+))?" },
+    "cookies": ["AWSELB", "AWSELBCORS"],
+    "meta": {},
+    "html": [],
+    "scripts": [],
+    "favicon_hash": []
+  },
+  {
+    "name": "PHP",
+    "category": "Programming Language",
+    "headers": { "X-Powered-By": "PHP(?:/([\\d.]+))?" },
+    "cookies": ["PHPSESSID"],
+    "meta": {},
+    "html": [],
+    "scripts": [],
+    "favicon_hash": []
+  },
+  {
+    "name": "Express",
+    "category": "Web Framework",
+    "headers": { "X-Powered-By": "Express" },
+    "cookies": ["connect.sid"],
+    "meta": {},
+    "html": [],
+    "scripts": [],
+    "favicon_hash": []
+  },
+  {
+    "name": "ASP.NET",
+    "category": "Web Framework",
+    "headers": { "X-Powered-By": "ASP\\.NET", "X-AspNet-Version": "([\\d.]+)" },
+    "cookies": ["ASP.NET_SessionId"],
+    "meta": {},
+    "html": [],
+    "scripts": [],
+    "favicon_hash": []
+  },
+  {
+    "name": "Django",
+    "category": "Web Framework",
+    "headers": {},
+    "cookies": ["csrftoken", "django_language"],
+    "meta": {},
+    "html": ["csrfmiddlewaretoken"],
+    "scripts": [],
+    "favicon_hash": []
+  },
+  {
+    "name": "Laravel",
+    "category": "Web Framework",
+    "headers": {},
+    "cookies": ["laravel_session", "XSRF-TOKEN"],
+    "meta": {},
+    "html": [],
+    "scripts": [],
+    "favicon_hash": []
+  },
+  {
+    "name": "Spring Boot",
+    "category": "Web Framework",
+    "headers": { "X-Application-Context": ".+" },
+    "cookies": ["JSESSIONID"],
+    "meta": {},
+    "html": ["Whitelabel Error Page"],
+    "scripts": [],
+    "favicon_hash": [708578229]
+  },
+  {
+    "name": "Ruby on Rails",
+    "category": "Web Framework",
+    "headers": { "X-Powered-By": "Phusion Passenger" },
+    "cookies": ["_session_id", "_rails_session"],
+    "meta": { "csrf-param": "authenticity_token" },
+    "html": [],
+    "scripts": ["csrf-token"],
+    "favicon_hash": []
+  },
+  {
+    "name": "WordPress",
+    "category": "CMS",
+    "headers": { "X-Pingback": ".+/xmlrpc\\.php" },
+    "cookies": ["wordpress_logged_in_", "wp-settings-"],
+    "meta": { "generator": "WordPress(?:\\s+([\\d.]+))?" },
+    "html": ["/wp-content/", "/wp-includes/"],
+    "scripts": ["wp-embed\\.min\\.js", "wp-emoji-release\\.min\\.js"],
+    "favicon_hash": []
+  },
+  {
+    "name": "Drupal",
+    "category": "CMS",
+    "headers": { "X-Generator": "Drupal(?:\\s+([\\d.]+))?", "X-Drupal-Cache": ".+" },
+    "cookies": ["SESS[a-f0-9]+"],
+    "meta": { "generator": "Drupal(?:\\s+([\\d.]+))?" },
+    "html": ["Drupal\\.settings", "drupal\\.js"],
+    "scripts": ["drupal\\.js"],
+    "favicon_hash": []
+  },
+  {
+    "name": "Joomla",
+    "category": "CMS",
+    "headers": {},
+    "cookies": [],
+    "meta": { "generator": "Joomla!(?:\\s+([\\d.]+))?" },
+    "html": ["/media/system/js/core\\.js", "/components/com_"],
+    "scripts": ["joomla"],
+    "favicon_hash": []
+  },
+  {
+    "name": "React",
+    "category": "JavaScript Library",
+    "headers": {},
+    "cookies": [],
+    "meta": {},
+    "html": ["data-reactroot", "data-reactid"],
+    "scripts": ["react(?:\\.production)?(?:\\.min)?\\.js", "react-dom"],
+    "favicon_hash": []
+  },
+  {
+    "name": "Vue.js",
+    "category": "JavaScript Library",
+    "headers": {},
+    "cookies": [],
+    "meta": {},
+    "html": ["data-v-[a-f0-9]+"],
+    "scripts": ["vue(?:\\.runtime)?(?:\\.min)?\\.js"],
+    "favicon_hash": []
+  },
+  {
+    "name": "Angular",
+    "category": "JavaScript Framework",
+    "headers": {},
+    "cookies": [],
+    "meta": {},
+    "html": ["ng-version=\"([\\d.]+)\"", "ng-app"],
+    "scripts": ["angular(?:\\.min)?\\.js"],
+    "favicon_hash": []
+  },
+  {
+    "name": "jQuery",
+    "category": "JavaScript Library",
+    "headers": {},
+    "cookies": [],
+    "meta": {},
+    "html": [],
+    "scripts": ["jquery[.-]([\\d.]+)(?:\\.min)?\\.js", "jquery\\.js"],
+    "favicon_hash": []
+  },
+  {
+    "name": "Bootstrap",
+    "category": "UI Framework",
+    "headers": {},
+    "cookies": [],
+    "meta": {},
+    "html": ["class=\"[^\"]*(?:container|row|col-(?:xs|sm|md|lg|xl)|navbar-expand)[^\"]*\""],
+    "scripts": ["bootstrap(?:\\.bundle)?(?:\\.min)?\\.js"],
+    "favicon_hash": []
+  },
+  {
+    "name": "Jenkins",
+    "category": "CI/CD",
+    "headers": { "X-Jenkins": "([\\d.]+)", "X-Hudson": ".+" },
+    "cookies": ["JSESSIONID"],
+    "meta": {},
+    "html": ["Jenkins [\\d.]+", "Dashboard \\[Jenkins\\]"],
+    "scripts": ["jenkins-behavior\\.js"],
+    "favicon_hash": [-1641706112]
+  },
+  {
+    "name": "GitLab",
+    "category": "DevOps",
+    "headers": {},
+    "cookies": ["_gitlab_session"],
+    "meta": {},
+    "html": ["Sign in · GitLab", "content=\"GitLab\""],
+    "scripts": ["webpack/runtime\\.js"],
+    "favicon_hash": [-875985814]
+  },
+  {
+    "name": "Grafana",
+    "category": "Monitoring",
+    "headers": {},
+    "cookies": ["grafana_session"],
+    "meta": {},
+    "html": ["<title>Grafana</title>", "window\\.grafanaBootData"],
+    "scripts": ["app\\.[a-f0-9]+\\.js"],
+    "favicon_hash": [999357577]
+  },
+  {
+    "name": "Kibana",
+    "category": "Monitoring",
+    "headers": { "kbn-name": ".+", "kbn-version": "([\\d.]+)" },
+    "cookies": [],
+    "meta": {},
+    "html": ["<title>Kibana</title>"],
+    "scripts": ["kibana"],
+    "favicon_hash": [-247388890]
+  },
+  {
+    "name": "pfSense",
+    "category": "Firewall / Gateway",
+    "headers": {},
+    "cookies": [],
+    "meta": {},
+    "html": ["<title>pfSense - Login</title>", "csrfMagicToken"],
+    "scripts": [],
+    "favicon_hash": [1230051379]
+  }
+]

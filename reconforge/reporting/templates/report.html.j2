@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ReconForge Assessment Report - {{ target.raw | e }}</title>
+  <style>
+    :root {
+      --bg: #0d1117;
+      --card-bg: #161b22;
+      --border: #30363d;
+      --text: #c9d1d9;
+      --text-muted: #8b949e;
+      --accent: #58a6ff;
+      --crit: #da3633;
+      --high: #f85149;
+      --med: #d29922;
+      --low: #3fb950;
+      --info: #58a6ff;
+    }
+    @media (prefers-color-scheme: light) {
+      :root {
+        --bg: #f6f8fa;
+        --card-bg: #ffffff;
+        --border: #d0d7de;
+        --text: #24292f;
+        --text-muted: #57606a;
+        --accent: #0969da;
+        --crit: #cf222e;
+        --high: #d1242f;
+        --med: #9a6700;
+        --low: #1a7f37;
+        --info: #0969da;
+      }
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background-color: var(--bg);
+      color: var(--text);
+      line-height: 1.5;
+      padding: 24px;
+    }
+    .container { max-width: 1200px; margin: 0 auto; }
+    header {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 24px;
+      margin-bottom: 24px;
+    }
+    h1 { font-size: 26px; font-weight: 600; margin-bottom: 8px; display: flex; align-items: center; gap: 10px; }
+    .badge-tool { background: var(--accent); color: #fff; font-size: 12px; padding: 2px 8px; border-radius: 12px; }
+    .meta-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 12px;
+      margin-top: 16px;
+      font-size: 14px;
+    }
+    .meta-item { color: var(--text-muted); }
+    .meta-item strong { color: var(--text); }
+    
+    .stats-row {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+    .stat-card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 16px;
+      text-align: center;
+    }
+    .stat-val { font-size: 28px; font-weight: 700; }
+    .stat-lbl { font-size: 12px; color: var(--text-muted); text-transform: uppercase; }
+
+    .section {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      margin-bottom: 24px;
+      overflow: hidden;
+    }
+    .section-title {
+      font-size: 16px;
+      font-weight: 600;
+      padding: 16px 20px;
+      background: rgba(255,255,255,0.02);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .table-container { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; text-align: left; font-size: 13px; }
+    th {
+      background: rgba(0,0,0,0.1);
+      padding: 10px 16px;
+      color: var(--text-muted);
+      border-bottom: 1px solid var(--border);
+      font-weight: 600;
+    }
+    td { padding: 12px 16px; border-bottom: 1px solid var(--border); }
+    tr:last-child td { border-bottom: none; }
+    
+    .sev-badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      color: #fff;
+    }
+    .sev-critical { background: var(--crit); }
+    .sev-high { background: var(--high); }
+    .sev-medium { background: var(--med); color: #000; }
+    .sev-low { background: var(--low); }
+    .sev-info { background: var(--info); }
+
+    .tag {
+      display: inline-block;
+      padding: 2px 6px;
+      border-radius: 4px;
+      background: var(--border);
+      font-size: 11px;
+      margin: 2px;
+    }
+    .filter-input {
+      width: 100%;
+      padding: 10px 14px;
+      border: 1px solid var(--border);
+      background: var(--bg);
+      color: var(--text);
+      border-radius: 6px;
+      margin-bottom: 16px;
+      outline: none;
+    }
+    pre, code {
+      font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+      font-size: 12px;
+      background: rgba(0,0,0,0.15);
+      padding: 2px 4px;
+      border-radius: 4px;
+    }
+    @media print {
+      body { background: #fff; color: #000; padding: 0; }
+      .section, header, .stat-card { border: 1px solid #ccc; background: #fff; }
+      .filter-input { display: none; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>ReconForge Reconnaissance Report <span class="badge-tool">v1.0.0</span></h1>
+      <div class="meta-grid">
+        <div class="meta-item">Target: <strong>{{ target.raw | e }}</strong> ({{ target.kind | e }})</div>
+        <div class="meta-item">Duration: <strong>{{ "%.2f"|format(meta.duration_s or 0) }}s</strong></div>
+        <div class="meta-item">Date: <strong>{{ meta.started[:19] | e }}</strong></div>
+        <div class="meta-item">Status: <strong>{% if meta.interrupted %}Interrupted (Partial){% else %}Completed{% endif %}</strong></div>
+      </div>
+    </header>
+
+    <div class="stats-row">
+      <div class="stat-card">
+        <div class="stat-val" style="color:var(--accent);">{{ summary.total_hosts or (results.ips|length) }}</div>
+        <div class="stat-lbl">Hosts / IPs</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-val" style="color:var(--low);">{{ summary.total_open_ports or (results.ports|length) }}</div>
+        <div class="stat-lbl">Open Ports</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-val">{{ summary.total_web_services or (results.http|length) }}</div>
+        <div class="stat-lbl">Web Services</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-val" style="color:var(--high);">{{ findings|length }}</div>
+        <div class="stat-lbl">Total Findings</div>
+      </div>
+    </div>
+
+    <!-- Security Findings Table -->
+    <div class="section">
+      <div class="section-title">
+        <span>Security Findings ({{ findings|length }})</span>
+      </div>
+      <div style="padding: 16px;">
+        <input type="text" class="filter-input" id="findingsFilter" placeholder="Filter findings by severity, title, or target..." onkeyup="filterTable('findingsFilter', 'findingsTable')">
+        <div class="table-container">
+          <table id="findingsTable">
+            <thead>
+              <tr>
+                <th>Severity</th>
+                <th>Title / Type</th>
+                <th>Target</th>
+                <th>Module</th>
+                <th>Details</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for f in findings %}
+              <tr>
+                <td><span class="sev-badge sev-{{ f.severity | lower }}">{{ f.severity | upper }}</span></td>
+                <td><strong>{{ f.title or f.type | e }}</strong></td>
+                <td><code>{{ f.target or f.subject | e }}</code></td>
+                <td>{{ f.module | e }}</td>
+                <td>{{ f.description or (f.data | string) | e }}</td>
+              </tr>
+              {% else %}
+              <tr><td colspan="5" style="text-align:center; color:var(--text-muted);">No critical or warning findings identified.</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- Open Ports & Services -->
+    <div class="section">
+      <div class="section-title">
+        <span>Open Ports & Services</span>
+      </div>
+      <div class="table-container">
+        <table>
+          <thead>
+            <tr>
+              <th>Host / IP</th>
+              <th>Port</th>
+              <th>Protocol</th>
+              <th>Service</th>
+              <th>Banner / Version</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for p in results.ports %}
+            <tr>
+              <td><code>{{ p.ip or p.host | e }}</code></td>
+              <td><strong>{{ p.port }}</strong></td>
+              <td>{{ p.proto or 'tcp' | upper }}</td>
+              <td><span class="tag">{{ p.service | e }}</span></td>
+              <td><code>{{ p.banner or p.version or '-' | e }}</code></td>
+            </tr>
+            {% else %}
+            <tr><td colspan="5" style="text-align:center; color:var(--text-muted);">No open ports recorded.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- HTTP Services -->
+    <div class="section">
+      <div class="section-title">
+        <span>Discovered Web Endpoints</span>
+      </div>
+      <div class="table-container">
+        <table>
+          <thead>
+            <tr>
+              <th>URL</th>
+              <th>Status</th>
+              <th>Title</th>
+              <th>Server</th>
+              <th>Technologies</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for h in results.http %}
+            <tr>
+              <td><a href="{{ h.url | e }}" target="_blank" style="color:var(--accent);">{{ h.url | e }}</a></td>
+              <td><span class="tag">{{ h.status_code or h.status }}</span></td>
+              <td>{{ h.title or '-' | e }}</td>
+              <td><code>{{ h.server or '-' | e }}</code></td>
+              <td>
+                {% for tech in h.technologies or [] %}
+                <span class="tag">{{ tech | e }}</span>
+                {% endfor %}
+              </td>
+            </tr>
+            {% else %}
+            <tr><td colspan="5" style="text-align:center; color:var(--text-muted);">No HTTP services detected.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+  </div>
+
+  <script>
+    function filterTable(inputId, tableId) {
+      const input = document.getElementById(inputId);
+      const filter = input.value.toLowerCase();
+      const rows = document.getElementById(tableId).getElementsByTagName('tr');
+      for (let i = 1; i < rows.length; i++) {
+        const text = rows[i].textContent || rows[i].innerText;
+        rows[i].style.display = text.toLowerCase().indexOf(filter) > -1 ? '' : 'none';
+      }
+    }
+  </script>
+</body>
+</html>
