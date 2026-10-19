@@ -55,11 +55,14 @@ class ScanConfig:
     dir_wordlist: Optional[str] = None
     resolve_depth: int = 1        # SAN feedback loop iterations
 
-    # Output
+    # Output & Integrations
     output_dir: str = "."
     output_format: list[str] = field(default_factory=lambda: ["json", "html"])
     verbose: bool = False
     no_color: bool = False
+    webhook: Optional[str] = None
+    db_path: Optional[str] = None
+    enable_diff: bool = False
 
 
 class ScanContext:
@@ -90,7 +93,13 @@ class ScanContext:
             max_workers=min(32, (config.concurrency // 10) + 4),
             thread_name_prefix="reconforge-worker",
         )
-        self._loop = loop or asyncio.get_event_loop()
+        try:
+            self._loop = loop or asyncio.get_running_loop()
+        except RuntimeError:
+            try:
+                self._loop = loop or asyncio.get_event_loop()
+            except RuntimeError:
+                self._loop = loop or asyncio.new_event_loop()
 
         # Shared data passed between module stages
         self._shared: dict = {}

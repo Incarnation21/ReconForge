@@ -22,3 +22,5 @@ htmlcov/
 *.log
 test_out/
 reconforge-out/
+my_reports/
+*.db

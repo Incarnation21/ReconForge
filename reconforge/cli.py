@@ -19,12 +19,14 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from reconforge.core.context import ScanConfig, ScanContext
-from reconforge.core.models import ScanResult
+from reconforge.core.diff_engine import DiffEngine, StateDatabase
+from reconforge.core.models import ScanResult, Severity
 from reconforge.core.module import get_registry
 from reconforge.core.orchestrator import Orchestrator
 from reconforge.core.scope import normalize_target, ScopeViolationError
 from reconforge.reporting.json_report import JSONReporter
 from reconforge.reporting.html_report import HTMLReporter
+from reconforge.reporting.webhook import WebhookNotifier
 
 BANNER = r"""
  ____                      _____                      
@@ -58,7 +60,7 @@ def list_modules_cmd() -> int:
     # Ensure modules are imported
     from reconforge.modules import (
         dns_enum, subdomain, ip_resolve, portscan,
-        http_probe, tech_fingerprint, dir_enum, tls_inspect, whois_rdap
+        http_probe, tech_fingerprint, dir_enum, tls_inspect, whois_rdap, takeover
     )
     registry = get_registry()
     print("\nAvailable ReconForge Modules:")
@@ -91,6 +93,73 @@ def report_cmd(json_file: str, output_format: str = "html", output_file: str | N
         return 0
     except Exception as e:
         print(f"[ERROR] Failed to generate report: {e}", file=sys.stderr)
+        return 1
+
+
+def diff_cmd(args: argparse.Namespace) -> int:
+    """Compute and display diff between historical scans or list scans."""
+    db_path = getattr(args, "db_path", None) or os.path.join(".", "reconforge_history.db")
+    if not os.path.exists(db_path):
+        print(f"[*] No history database found at {db_path}. Run a scan first.")
+        return 0
+
+    db = StateDatabase(db_path)
+
+    if getattr(args, "list", False):
+        scans = db.list_all_scans()
+        if not scans:
+            print(f"[*] No scans found in database: {db_path}")
+            return 0
+        print("\nHistorical ReconForge Scans:")
+        print("=" * 85)
+        print(f"{'Scan ID':<12} {'Target':<28} {'Date / Time':<22} {'Hosts':<7} {'Ports':<7} {'Findings':<8}")
+        print("-" * 85)
+        for s in scans:
+            start_fmt = str(s.get("start_time", ""))[:19].replace("T", " ")
+            print(f"{s.get('scan_id',''):<12} {s.get('target',''):<28} {start_fmt:<22} {s.get('total_hosts',0):<7} {s.get('total_open_ports',0):<7} {s.get('total_findings',0):<8}")
+        print("=" * 85 + "\n")
+        return 0
+
+    if getattr(args, "target", None):
+        target = args.target
+        recent = db.get_latest_scans_for_target(target, limit=2)
+        if not recent:
+            print(f"[!] No scans found for target '{target}' in database {db_path}", file=sys.stderr)
+            return 1
+        if len(recent) == 1:
+            print(f"[*] Only 1 scan found for '{target}' ({recent[0].get('scan_id')}). Displaying baseline...")
+            delta = DiffEngine.compute(None, recent[0])
+        else:
+            delta = DiffEngine.compute(recent[1], recent[0])
+        print(delta.to_summary_text())
+        return 0
+
+    scan_ids = getattr(args, "scan_ids", []) or []
+    if len(scan_ids) >= 2:
+        s1 = db.get_scan(scan_ids[0])
+        s2 = db.get_scan(scan_ids[1])
+        if not s1 or not s2:
+            print(f"[!] One or both scan IDs not found in database {db_path}", file=sys.stderr)
+            return 1
+        delta = DiffEngine.compute(s1, s2)
+        print(delta.to_summary_text())
+        return 0
+    elif len(scan_ids) == 1:
+        s = db.get_scan(scan_ids[0])
+        if not s:
+            print(f"[!] Scan ID '{scan_ids[0]}' not found.", file=sys.stderr)
+            return 1
+        recent = db.get_latest_scans_for_target(s["target"], limit=10)
+        prev = None
+        for idx, item in enumerate(recent):
+            if item["scan_id"] == s["scan_id"] and idx + 1 < len(recent):
+                prev = recent[idx + 1]
+                break
+        delta = DiffEngine.compute(prev, s)
+        print(delta.to_summary_text())
+        return 0
+    else:
+        print("[!] Please specify --target <domain>, provide scan IDs to compare, or use --list.")
         return 1
 
 
@@ -129,6 +198,9 @@ async def scan_target(args: argparse.Namespace) -> int:
         output_format=args.format,
         verbose=args.verbose,
         no_color=args.no_color,
+        webhook=getattr(args, "webhook", None),
+        db_path=getattr(args, "db_path", None),
+        enable_diff=getattr(args, "diff", False),
     )
 
     scan_id = uuid.uuid4().hex[:8]
@@ -181,6 +253,30 @@ async def scan_target(args: argparse.Namespace) -> int:
         HTMLReporter(result).write(html_path)
         logger.info(f"Saved HTML report: {html_path}")
 
+    # SQLite state tracking & optional continuous monitoring diff
+    db_path = getattr(args, "db_path", None) or os.path.join(args.output_dir, "reconforge_history.db")
+    db = StateDatabase(db_path)
+
+    diff_summary: str | None = None
+    if getattr(args, "diff", False):
+        recent_scans = db.get_latest_scans_for_target(result.target, limit=1)
+        prev_scan = recent_scans[0] if recent_scans else None
+        delta = DiffEngine.compute(prev_scan, result.to_dict())
+        diff_summary = delta.to_summary_text()
+        print("\n" + diff_summary)
+
+    db.save_scan(result)
+
+    # Real-time Webhook Alerts
+    webhook_url = getattr(args, "webhook", None)
+    notifier = WebhookNotifier(url=webhook_url)
+    if notifier.is_configured():
+        logger.info(f"Dispatching notifications via webhook ({notifier.service_type})...")
+        for f in result.findings:
+            if f.severity in (Severity.CRITICAL, Severity.HIGH):
+                await notifier.send_finding_alert(f)
+        await notifier.send_scan_completed(result, diff_summary=diff_summary)
+
     summary = result.to_dict()["summary"]
     print(f"\n{'='*60}")
     print(f"  RECONFORGE SCAN COMPLETE: {result.target}")
@@ -228,6 +324,9 @@ def main() -> None:
         p.add_argument("--dir-wordlist", help="Directory wordlist")
         p.add_argument("--output-dir", "-o", default=".", help="Report directory")
         p.add_argument("--format", "-f", nargs="+", choices=["json", "html"], default=["json", "html"])
+        p.add_argument("--webhook", help="Webhook URL (Discord, Slack, or generic HTTP POST) for instant alerts")
+        p.add_argument("--diff", action="store_true", help="Compare against previous scan for this target and display delta")
+        p.add_argument("--db-path", help="Path to SQLite history database (defaults to <output_dir>/reconforge_history.db)")
         p.add_argument("-v", "--verbose", action="store_true", help="Verbose output")
         p.add_argument("--no-color", action="store_true", help="Disable color")
 
@@ -240,8 +339,15 @@ def main() -> None:
     report_parser.add_argument("--format", default="html", choices=["html"], help="Output format")
     report_parser.add_argument("-o", "--output", help="Output file path")
 
+    # --- diff subcommand ---
+    diff_parser = subparsers.add_parser("diff", help="Compare historical scans and track asset deltas")
+    diff_parser.add_argument("scan_ids", nargs="*", help="Optional scan IDs to compare (e.g. scan1 scan2)")
+    diff_parser.add_argument("--target", "-t", help="Target domain/IP to compare the latest 2 scans")
+    diff_parser.add_argument("--db-path", help="Path to SQLite history database")
+    diff_parser.add_argument("--list", "-l", action="store_true", help="List all historical scans in the database")
+
     # Direct shorthand fallback: reconforge <target> [flags]
-    if len(sys.argv) > 1 and sys.argv[1] not in ("scan", "list-modules", "report", "-h", "--help"):
+    if len(sys.argv) > 1 and sys.argv[1] not in ("scan", "list-modules", "report", "diff", "-h", "--help"):
         # Insert "scan" as default subcommand
         sys.argv.insert(1, "scan")
 
@@ -251,6 +357,8 @@ def main() -> None:
         sys.exit(list_modules_cmd())
     elif args.subcommand == "report":
         sys.exit(report_cmd(args.json_file, args.format, args.output))
+    elif args.subcommand == "diff":
+        sys.exit(diff_cmd(args))
     elif args.subcommand == "scan":
         setup_logging(args.verbose)
         print_banner(args.no_color)
@@ -262,3 +370,4 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+

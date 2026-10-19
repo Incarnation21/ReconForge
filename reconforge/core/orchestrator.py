@@ -30,7 +30,7 @@ DEFAULT_PIPELINE: list[list[str]] = [
     ["ip_resolve"],
     ["portscan"],
     ["http_probe"],
-    ["tech_fingerprint", "dir_enum", "tls_inspect"],
+    ["tech_fingerprint", "dir_enum", "tls_inspect", "takeover"],
 ]
 
 
@@ -71,6 +71,7 @@ class Orchestrator:
             dir_enum,
             tls_inspect,
             whois_rdap,
+            takeover,
         )
 
     def _setup_signal_handlers(self) -> None:
