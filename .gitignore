@@ -18,9 +18,25 @@ env/
 .coverage
 htmlcov/
 
-# Scan outputs & logs
+# Scan outputs, local databases, & reports
 *.log
 test_out/
 reconforge-out/
 my_reports/
 *.db
+reconforge_*.html
+reconforge_*.json
+
+# Secrets & Environment Configurations
+.env
+.env.*
+!.env.example
+.telegram_chat_id*
+
+# IDE & System artifacts
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db

@@ -157,9 +157,56 @@ def diff_cmd(args: argparse.Namespace) -> int:
                 break
         delta = DiffEngine.compute(prev, s)
         print(delta.to_summary_text())
-        return 0
     else:
         print("[!] Please specify --target <domain>, provide scan IDs to compare, or use --list.")
+        return 1
+
+
+async def test_telegram_cmd(chat_id: str | None = None) -> int:
+    """Verify Telegram bot connectivity and auto-detect chat ID."""
+    notifier = WebhookNotifier(telegram_chat_id=chat_id)
+    if not notifier.telegram_token:
+        print(
+            "\n[!] ERROR: TELEGRAM_BOT_TOKEN not configured.\n"
+            "    Please define TELEGRAM_BOT_TOKEN in your .env file or environment variable.\n"
+            "    See .env.example for details.\n",
+            file=sys.stderr,
+        )
+        return 1
+
+    print("\n" + "=" * 60)
+    print("  RECONFORGE TELEGRAM BOT TEST")
+    print("=" * 60)
+    print(f"  Bot Token  : {notifier.telegram_token[:10]}...{notifier.telegram_token[-6:]}")
+    
+    import urllib.request
+    try:
+        req = urllib.request.urlopen(f"https://api.telegram.org/bot{notifier.telegram_token}/getMe", timeout=5)
+        bot_info = json.loads(req.read().decode())["result"]
+        bot_username = bot_info.get("username", "ReconForgeBot")
+        print(f"  Bot Name   : {bot_info.get('first_name')} (@{bot_username})")
+        print("  Connection : [OK] Online and Verified")
+    except Exception as e:
+        print(f"  [ERROR] Failed to reach Telegram API: {e}", file=sys.stderr)
+        return 1
+
+    cid = await notifier._resolve_telegram_chat_id()
+    if not cid:
+        print("\n[!] ACTION REQUIRED: Chat ID not yet detected.")
+        print(f"    1. Open your Telegram app and search for: @{bot_username}")
+        print(f"       or click: https://t.me/{bot_username}")
+        print("    2. Tap 'START' (or send /start)")
+        print("    3. Re-run: reconforge test-telegram\n")
+        return 1
+
+    print(f"  Chat ID    : {cid}")
+    print("[*] Dispatching test notification to your Telegram...")
+    success = await notifier.send_test_message(target="reconforge-init")
+    if success:
+        print("[+] SUCCESS! Test alert received on Telegram.\n" + "=" * 60 + "\n")
+        return 0
+    else:
+        print("[!] Failed to send message. Please ensure you have tapped START on the bot.\n")
         return 1
 
 
@@ -346,8 +393,12 @@ def main() -> None:
     diff_parser.add_argument("--db-path", help="Path to SQLite history database")
     diff_parser.add_argument("--list", "-l", action="store_true", help="List all historical scans in the database")
 
+    # --- test-telegram subcommand ---
+    tt_parser = subparsers.add_parser("test-telegram", help="Test Telegram bot alert connection (@ReconForgeBot)")
+    tt_parser.add_argument("--chat-id", "-c", help="Your Telegram Chat ID (optional, auto-detected)")
+
     # Direct shorthand fallback: reconforge <target> [flags]
-    if len(sys.argv) > 1 and sys.argv[1] not in ("scan", "list-modules", "report", "diff", "-h", "--help"):
+    if len(sys.argv) > 1 and sys.argv[1] not in ("scan", "list-modules", "report", "diff", "test-telegram", "-h", "--help"):
         # Insert "scan" as default subcommand
         sys.argv.insert(1, "scan")
 
@@ -359,6 +410,8 @@ def main() -> None:
         sys.exit(report_cmd(args.json_file, args.format, args.output))
     elif args.subcommand == "diff":
         sys.exit(diff_cmd(args))
+    elif args.subcommand == "test-telegram":
+        sys.exit(asyncio.run(test_telegram_cmd(getattr(args, "chat_id", None))))
     elif args.subcommand == "scan":
         setup_logging(args.verbose)
         print_banner(args.no_color)

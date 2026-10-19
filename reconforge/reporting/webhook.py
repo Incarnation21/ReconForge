@@ -2,6 +2,7 @@
 Real-time Alerting and Webhook Dispatcher for ReconForge.
 Supports Discord, Slack, Telegram, and Generic JSON Webhooks.
 Sends instant notifications on high-severity findings and scan completion.
+Default configuration includes pre-configured Telegram Bot (@ReconForgeBot).
 """
 from __future__ import annotations
 
@@ -20,7 +21,25 @@ except ImportError:
 
 from reconforge.core.models import Finding, ScanResult, Severity
 
-logger = logging.getLogger(__name__)
+def _load_env_file(path: str = ".env") -> None:
+    """Load key-value environment variables from local .env file if present."""
+    if os.path.exists(path):
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                for line in f:
+                    line = line.strip()
+                    if line and not line.startswith("#") and "=" in line:
+                        k, v = line.split("=", 1)
+                        k = k.strip()
+                        v = v.strip().strip('"').strip("'")
+                        if k and k not in os.environ:
+                            os.environ[k] = v
+        except Exception:
+            pass
+
+_load_env_file()
+
+DEFAULT_CHAT_ID_FILE = ".telegram_chat_id"
 
 
 class WebhookNotifier:
@@ -33,33 +52,85 @@ class WebhookNotifier:
         telegram_chat_id: Optional[str] = None,
     ):
         self.url = url or os.environ.get("RECONFORGE_WEBHOOK") or os.environ.get("DISCORD_WEBHOOK_URL") or os.environ.get("SLACK_WEBHOOK_URL")
-        self.telegram_token = telegram_token or os.environ.get("TELEGRAM_BOT_TOKEN")
+        
+        # Load chat_id from param -> env -> local cache file
         self.telegram_chat_id = telegram_chat_id or os.environ.get("TELEGRAM_CHAT_ID")
+        if not self.telegram_chat_id and os.path.exists(DEFAULT_CHAT_ID_FILE):
+            try:
+                with open(DEFAULT_CHAT_ID_FILE, "r", encoding="utf-8") as f:
+                    cached = f.read().strip()
+                    if cached:
+                        self.telegram_chat_id = cached
+            except Exception:
+                pass
 
-        # Parse telegram format from url: telegram:<token>:<chat_id>
-        if self.url and self.url.startswith("telegram:"):
-            parts = self.url.split(":")
-            if len(parts) >= 3:
-                self.telegram_token = parts[1]
-                self.telegram_chat_id = parts[2]
+        # Parse telegram format from url:
+        # e.g. "telegram" or "telegram:<chat_id>" or "telegram:<token>:<chat_id>"
+        self.telegram_token = telegram_token or os.environ.get("TELEGRAM_BOT_TOKEN")
+        if self.url:
+            if self.url.lower() == "telegram":
+                self.url = None
+                self.telegram_token = self.telegram_token or os.environ.get("TELEGRAM_BOT_TOKEN")
+            elif self.url.startswith("telegram:"):
+                parts = self.url.split(":")
+                if len(parts) == 2:
+                    # telegram:<chat_id>
+                    self.telegram_token = self.telegram_token or os.environ.get("TELEGRAM_BOT_TOKEN")
+                    self.telegram_chat_id = parts[1]
+                elif len(parts) >= 3:
+                    # telegram:<token>:<chat_id>
+                    self.telegram_token = parts[1]
+                    self.telegram_chat_id = parts[2]
                 self.url = None
 
         self.service_type = self._detect_service()
 
     def is_configured(self) -> bool:
-        return bool(self.url or (self.telegram_token and self.telegram_chat_id))
+        return bool(self.url or self.telegram_token)
 
     def _detect_service(self) -> str:
-        if self.telegram_token and self.telegram_chat_id:
+        if self.url:
+            lower = self.url.lower()
+            if "discord.com/api/webhooks" in lower:
+                return "discord"
+            elif "hooks.slack.com" in lower:
+                return "slack"
+            return "generic"
+        elif self.telegram_token:
             return "telegram"
-        if not self.url:
-            return "disabled"
-        lower = self.url.lower()
-        if "discord.com/api/webhooks" in lower:
-            return "discord"
-        elif "hooks.slack.com" in lower:
-            return "slack"
-        return "generic"
+        return "disabled"
+
+    async def _resolve_telegram_chat_id(self) -> Optional[str]:
+        """Auto-detect chat ID by querying getUpdates if user started @ReconForgeBot."""
+        if self.telegram_chat_id:
+            return self.telegram_chat_id
+
+        if not AIOHTTP_AVAILABLE or not self.telegram_token:
+            return None
+
+        url = f"https://api.telegram.org/bot{self.telegram_token}/getUpdates"
+        try:
+            timeout = aiohttp.ClientTimeout(total=5.0)
+            async with aiohttp.ClientSession(timeout=timeout) as session:
+                async with session.get(url) as resp:
+                    if resp.status == 200:
+                        data = await resp.json()
+                        updates = data.get("result", [])
+                        if updates:
+                            for upd in reversed(updates):
+                                chat = upd.get("message", {}).get("chat", {}) or upd.get("my_chat_member", {}).get("chat", {})
+                                cid = str(chat.get("id", ""))
+                                if cid:
+                                    self.telegram_chat_id = cid
+                                    try:
+                                        with open(DEFAULT_CHAT_ID_FILE, "w", encoding="utf-8") as f:
+                                            f.write(cid)
+                                    except Exception:
+                                        pass
+                                    return cid
+        except Exception as e:
+            logger.debug(f"Could not auto-resolve Telegram chat ID: {e}")
+        return None
 
     async def send_finding_alert(self, finding: Finding) -> bool:
         """Send an urgent push alert for a high/critical security finding."""
@@ -118,6 +189,34 @@ class WebhookNotifier:
         except Exception as e:
             logger.warning(f"Failed to dispatch scan completion to webhook: {e}")
             return False
+
+    async def send_test_message(self, target: str = "Test-Target") -> bool:
+        """Dispatch a test notification to verify end-to-end connectivity."""
+        if self.service_type == "telegram":
+            text = (
+                "🚀 <b>ReconForge Alert System Online!</b>\n"
+                "• <b>Status:</b> Connected & Operational\n"
+                "• <b>Bot:</b> @ReconForgeBot\n"
+                f"• <b>Target:</b> <code>{target}</code>\n"
+                "• <b>Channel:</b> Telegram Push Notifications"
+            )
+            return await self._send_telegram(text)
+        elif self.service_type == "discord":
+            payload = {
+                "username": "ReconForge Engine",
+                "embeds": [
+                    {
+                        "title": "🚀 ReconForge Webhook Test",
+                        "description": "Discord webhook connectivity verified successfully.",
+                        "color": 0x2ECC71,
+                    }
+                ],
+            }
+            return await self._post_json(self.url, payload)
+        elif self.service_type == "slack":
+            return await self._post_json(self.url, {"text": "🚀 ReconForge Webhook Test: Slack connection successful!"})
+        else:
+            return await self._post_json(self.url, {"event": "test_ping", "status": "ok"})
 
     # ─────────────────────────────────────────────────────────────────────────
     # Discord Formatters
@@ -269,8 +368,20 @@ class WebhookNotifier:
                 return resp.status in (200, 204)
 
     async def _send_telegram(self, text: str) -> bool:
-        if not AIOHTTP_AVAILABLE or not self.telegram_token or not self.telegram_chat_id:
+        if not AIOHTTP_AVAILABLE or not self.telegram_token:
             return False
+        
+        # Ensure chat_id is resolved
+        if not self.telegram_chat_id:
+            await self._resolve_telegram_chat_id()
+
+        if not self.telegram_chat_id:
+            logger.warning(
+                "Telegram alert skipped: Chat ID not set. "
+                "Open https://t.me/ReconForgeBot on Telegram, tap 'Start', and re-run."
+            )
+            return False
+
         url = f"https://api.telegram.org/bot{self.telegram_token}/sendMessage"
         payload = {
             "chat_id": self.telegram_chat_id,
